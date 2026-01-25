@@ -30,7 +30,7 @@ def calculate_budget_comparison(movements_df: pd.DataFrame, budget_df: pd.DataFr
     """
     # Filter only expenses (negative amounts)
     expenses = movements_df[movements_df['amount'] < 0].copy()
-    expenses['amount'] = expenses['amount'].abs()
+    # Keep the negative sign - don't use abs()
 
     # Group by category, subcategory, month, year
     actual = expenses.groupby(['category', 'subcategory', 'month', 'year'])['amount'].sum().reset_index()
@@ -44,8 +44,10 @@ def calculate_budget_comparison(movements_df: pd.DataFrame, budget_df: pd.DataFr
         how='left'
     )
     comparison['actual'] = comparison['actual'].fillna(0)
+    # Difference: budget - |actual| (since actual is negative, we need to add it)
+    # If budget is 100 and actual is -80, difference should be 100 - 80 = 20 (money saved)
     comparison['difference'] = comparison['budget'] - comparison['actual']
-    comparison['percentage'] = (comparison['actual'] / comparison['budget'] * 100).round(2)
+    comparison['percentage'] = (abs(comparison['actual']) / comparison['budget'] * 100).round(2)
 
     return comparison
 
@@ -359,8 +361,8 @@ def main():
             if selected_month != 'All':
                 filtered_movements = filtered_movements[filtered_movements['month'] == selected_month]
 
-            # Get all categories
-            categories = sorted(filtered_movements['category'].unique())
+            # Get all categories (filter out NaN values before sorting)
+            categories = sorted(filtered_movements['category'].dropna().unique())
 
             if categories:
                 # Category selector
