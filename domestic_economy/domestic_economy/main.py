@@ -160,12 +160,11 @@ def build_previous_year_pairs(selected_periods: Sequence[tuple[int, int]]) -> pd
     return pd.DataFrame(pairs)
 
 
-def calculate_category_previous_year_comparison(
+def calculate_previous_year_comparison_for_movements(
     movements_df: pd.DataFrame,
     selected_periods: Sequence[tuple[int, int]],
-    category: str,
 ) -> dict[str, float | None]:
-    """Compare one category total against the same selected months one year earlier."""
+    """Compare absolute movement totals against the same selected months one year earlier."""
     if movements_df.empty or not selected_periods:
         return {
             'current_total': 0.0,
@@ -177,21 +176,13 @@ def calculate_category_previous_year_comparison(
     normalized_periods = sorted({(int(year), int(month)) for year, month in selected_periods})
     previous_periods = [(year - 1, month) for year, month in normalized_periods]
 
-    category_movements = movements_df[movements_df['category'] == category].copy()
-    if category_movements.empty:
-        return {
-            'current_total': 0.0,
-            'previous_total': 0.0,
-            'difference': 0.0,
-            'percentage_change': None,
-        }
-
-    category_movements['amount_abs'] = category_movements['amount'].abs()
+    comparable_movements = movements_df.copy()
+    comparable_movements['amount_abs'] = comparable_movements['amount'].abs()
     current_total = float(
-        filter_dataframe_by_periods(category_movements, normalized_periods)['amount_abs'].sum()
+        filter_dataframe_by_periods(comparable_movements, normalized_periods)['amount_abs'].sum()
     )
     previous_total = float(
-        filter_dataframe_by_periods(category_movements, previous_periods)['amount_abs'].sum()
+        filter_dataframe_by_periods(comparable_movements, previous_periods)['amount_abs'].sum()
     )
     difference = current_total - previous_total
     percentage_change = None
@@ -204,6 +195,31 @@ def calculate_category_previous_year_comparison(
         'difference': difference,
         'percentage_change': percentage_change,
     }
+
+
+def calculate_category_previous_year_comparison(
+    movements_df: pd.DataFrame,
+    selected_periods: Sequence[tuple[int, int]],
+    category: str,
+) -> dict[str, float | None]:
+    """Compare one category total against the same selected months one year earlier."""
+    category_movements = movements_df[movements_df['category'] == category].copy()
+    return calculate_previous_year_comparison_for_movements(category_movements, selected_periods)
+
+
+def calculate_selected_subcategories_previous_year_comparison(
+    movements_df: pd.DataFrame,
+    selected_periods: Sequence[tuple[int, int]],
+    category: str,
+    subcategories: Sequence[str],
+) -> dict[str, float | None]:
+    """Compare the selected subcategories total against the same selected months one year earlier."""
+    normalized_subcategories = [str(subcategory) for subcategory in subcategories if pd.notna(subcategory)]
+    selected_movements = movements_df[
+        (movements_df['category'] == category)
+        & (movements_df['subcategory'].isin(normalized_subcategories))
+    ].copy()
+    return calculate_previous_year_comparison_for_movements(selected_movements, selected_periods)
 
 
 def build_subcategory_year_comparison(
@@ -902,22 +918,6 @@ def main():
                         "El gráfico comparativo sumará todas las seleccionadas."
                     )
 
-                    selected_subcategories = st.multiselect(
-                        "Subcategorías seleccionadas",
-                        options=available_subcategory_order,
-                        key=selected_subcategories_widget_key,
-                        help="El gráfico comparativo suma todas las subcategorías elegidas.",
-                    )
-                    selected_subcategories = merge_selected_subcategories(
-                        available_subcategory_order,
-                        selected_subcategories,
-                    )
-                    previous_selected_subcategories = st.session_state.get(selected_subcategories_state_key, [])
-                    st.session_state[selected_subcategories_state_key] = selected_subcategories
-                    if selected_subcategories != previous_selected_subcategories:
-                        st.session_state[selection_revision_key] = selection_revision + 1
-                        selection_revision += 1
-
                     st.markdown("---")
 
                     # Create two columns for charts
@@ -986,19 +986,82 @@ def main():
                     if selected_from_clicks:
                         merged_selected_subcategories = merge_selected_subcategories(
                             available_subcategory_order,
-                            selected_subcategories,
+                            st.session_state.get(selected_subcategories_state_key, []),
                             selected_from_clicks,
                         )
-                        if merged_selected_subcategories != selected_subcategories:
+                        if merged_selected_subcategories != st.session_state.get(selected_subcategories_state_key, []):
                             st.session_state[selected_subcategories_state_key] = merged_selected_subcategories
                             st.session_state[selected_subcategories_widget_sync_key] = merged_selected_subcategories
                             st.session_state[selection_revision_key] = selection_revision + 1
                             st.rerun()
 
+                    # Show all transactions for this category
+                    st.subheader(f"All Transactions in {selected_category}")
+                    display_columns = ['date', 'subcategory', 'description', 'amount']
+                    st.dataframe(
+                        category_data[display_columns].sort_values('date', ascending=False),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                    st.markdown("---")
+                    selected_subcategories = st.multiselect(
+                        "Subcategorías seleccionadas",
+                        options=available_subcategory_order,
+                        key=selected_subcategories_widget_key,
+                        help="El gráfico comparativo suma todas las subcategorías elegidas.",
+                    )
+                    selected_subcategories = merge_selected_subcategories(
+                        available_subcategory_order,
+                        selected_subcategories,
+                    )
+                    previous_selected_subcategories = st.session_state.get(selected_subcategories_state_key, [])
+                    st.session_state[selected_subcategories_state_key] = selected_subcategories
+                    if selected_subcategories != previous_selected_subcategories:
+                        st.session_state[selection_revision_key] = selection_revision + 1
+                        selection_revision += 1
+
                     if selected_subcategories:
-                        st.markdown("---")
                         st.subheader("Comparativa año anterior vs selección actual")
                         st.caption("Subcategorías incluidas: " + ", ".join(selected_subcategories))
+
+                        selected_subcategories_comparison = calculate_selected_subcategories_previous_year_comparison(
+                            movements_df,
+                            selected_periods,
+                            selected_category,
+                            selected_subcategories,
+                        )
+                        selected_difference = float(selected_subcategories_comparison['difference'])
+                        selected_percentage_change = selected_subcategories_comparison['percentage_change']
+                        selected_comparison_color = '#ef4444' if selected_difference > 0 else '#22c55e'
+                        if selected_difference == 0:
+                            selected_comparison_color = '#9ca3af'
+                        selected_percentage_label = (
+                            f"{selected_percentage_change:+.1f}%"
+                            if selected_percentage_change is not None
+                            else 'n/a'
+                        )
+
+                        selected_total_col, selected_comparison_col = st.columns([1.1, 1.9])
+                        selected_total_col.metric(
+                            "Total subcategorías seleccionadas",
+                            f"€{selected_subcategories_comparison['current_total']:,.2f}",
+                        )
+                        selected_comparison_col.markdown(
+                            (
+                                "<div style=\"padding-top: 1.85rem;\">"
+                                "<div style=\"font-size: 0.95rem; color: #9ca3af; margin-bottom: 0.2rem;\">"
+                                "vs mismo rango año anterior"
+                                "</div>"
+                                f"<div style=\"font-size: 1.85rem; font-weight: 700; color: {selected_comparison_color};\">"
+                                f"{selected_difference:+,.2f}€ <span style=\"font-size: 1.05rem; font-weight: 600;\">({selected_percentage_label})</span>"
+                                "</div>"
+                                f"<div style=\"font-size: 0.9rem; color: #9ca3af;\">Año anterior: €{selected_subcategories_comparison['previous_total']:,.2f}</div>"
+                                "</div>"
+                            ),
+                            unsafe_allow_html=True,
+                        )
+
                         subcategory_comparison = build_subcategory_year_comparison(
                             movements_df,
                             selected_periods,
@@ -1058,18 +1121,9 @@ def main():
                                 hide_index=True,
                             )
                         else:
-                            st.info("No hay datos comparativos disponibles para la subcategoría seleccionada.")
+                            st.info("No hay datos comparativos disponibles para las subcategorías seleccionadas.")
                     else:
                         st.info("Selecciona una o varias subcategorías para ver la comparativa con el año anterior.")
-
-                    # Show all transactions for this category
-                    st.subheader(f"All Transactions in {selected_category}")
-                    display_columns = ['date', 'subcategory', 'description', 'amount']
-                    st.dataframe(
-                        category_data[display_columns].sort_values('date', ascending=False),
-                        use_container_width=True,
-                        hide_index=True
-                    )
                 else:
                     st.info(f"No data available for category: {selected_category}")
             else:
