@@ -8,20 +8,24 @@ A Python application for tracking and visualizing domestic economy using Streaml
 - 💰 Budget management and comparison
 - 📈 Visual analytics with interactive charts
 - 📅 Monthly and yearly summaries
+- 🗓️ Multi-select month/year filtering across tabs
 - 💵 Budget vs actual spending analysis
+- 📆 Previous-year comparison for the same selected months
 - 🏦 Track balances across multiple bank accounts
 - 📊 Visualize account evolution and distribution
 
-## Installation
+## Setup
 
-This project uses Poetry for dependency management.
+This project now uses `uv` for dependency management and command execution.
+
+> The Python project lives in the `domestic_economy/` subfolder, so run the commands below from there.
 
 ```bash
-# Install dependencies
-poetry install
+cd domestic_economy
+uv sync
 
-# Create initial Excel file with sample data
-poetry run python create_excel.py
+# Create initial Excel file with sample data if you need it
+uv run python create_excel.py
 ```
 
 ## Usage
@@ -29,10 +33,25 @@ poetry run python create_excel.py
 ### Running the Application
 
 ```bash
-poetry run streamlit run domestic_economy/main.py
+cd domestic_economy
+uv run streamlit run domestic_economy/main.py
 ```
 
+If `streamlit` was previously failing with `Command not found`, it usually means the dependencies were not installed in the active environment. `uv sync` installs the declared dependencies and `uv run ...` executes them inside the project environment.
+
 The application will open in your default web browser.
+
+Use the left sidebar to select one or more `month + year` combinations (for example, `February 2026` + `March 2026`). All analytical tabs will update to those exact periods.
+
+### Alternative: run everything from the repository root
+
+If you prefer not to `cd` into the project folder:
+
+```bash
+uv --directory domestic_economy sync
+uv --directory domestic_economy run python create_excel.py
+uv --directory domestic_economy run streamlit run domestic_economy/main.py
+```
 
 ### Excel File Structure
 
@@ -72,25 +91,44 @@ The application reads data from `data/economy.xlsx` with three sheets:
 ## Dashboard Tabs
 
 1. **Overview**: Key metrics, total in accounts, and expense distribution
-2. **Budget vs Actual**: Compare your spending against budgets
+2. **Budget vs Actual**: Compare your budgets against actual values with absolute-value charting
 3. **Income & Expenses**: Monthly trends and cumulative balance
 4. **Accounts**: Track account balances, evolution, and distribution
 5. **Category Details**: Interactive category selector with subcategory breakdown in bar charts and pie charts
-6. **Data**: View raw data from all sheets
+6. **Previous Year Comparison**: Compare each selected month against the same month one year earlier
+7. **Data**: View raw data from all sheets
 
 ## Project Structure
 
 ```
-domestic_economy/
-├── data/
-│   └── economy.xlsx          # Excel file with movements, budget, and accounts
-├── domestic_economy/
-│   ├── __init__.py
-│   ├── excel_utils.py        # Utilities for reading Excel data
-│   └── main.py               # Main Streamlit application
-├── create_excel.py           # Script to create initial Excel file
-├── pyproject.toml            # Poetry configuration
-└── README.md
+domestic-economy-tracker/
+├── README.md
+└── domestic_economy/
+	├── data/
+	│   └── economy.xlsx      # Excel file with movements, budget, and accounts
+	├── domestic_economy/
+	│   ├── __init__.py
+	│   ├── excel_utils.py    # Utilities for reading Excel data
+	│   └── main.py           # Main Streamlit application
+	├── create_excel.py       # Script to create initial Excel file
+	├── pyproject.toml        # uv / project configuration
+	├── tests/
+	└── uv.lock
+```
+
+## Common commands
+
+```bash
+cd domestic_economy
+
+# Install/update dependencies
+uv sync
+
+# Launch the dashboard
+uv run streamlit run domestic_economy/main.py
+
+# Run tests
+uv run python -m unittest discover -s tests
 ```
 
 ## Technologies Used

@@ -1,8 +1,10 @@
 """
 Script to create the initial Excel file with three sheets: movements, budget, and accounts.
 """
-import pandas as pd
 from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
 
 # Sample data for movements sheet
 movements_data = {
@@ -44,7 +46,8 @@ budget_df = pd.DataFrame(budget_data)
 accounts_df = pd.DataFrame(accounts_data)
 
 # Write to Excel file with three sheets
-excel_path = 'data/economy.xlsx'
+excel_path = Path(__file__).resolve().parent / 'data' / 'economy_default.xlsx'
+excel_path.parent.mkdir(parents=True, exist_ok=True)
 with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
     movements_df.to_excel(writer, sheet_name='movements', index=False)
     budget_df.to_excel(writer, sheet_name='budget', index=False)

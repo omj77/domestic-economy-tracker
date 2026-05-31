@@ -1,18 +1,22 @@
-[tool.poetry]
+[project]
 name = "domestic-economy"
 version = "0.1.0"
-description = ""
-authors = ["Oscar MJ <omarinello@indoorclima.com>"]
-readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.10"
-pandas = "^2.3.3"
-openpyxl = "^3.1.5"
-streamlit = "^1.52.1"
-plotly = "^6.5.0"
-
+description = "Streamlit dashboard for tracking domestic economy in Excel."
+requires-python = ">=3.10"
+authors = [
+	{ name = "Oscar MJ", email = "omarinello@indoorclima.com" }
+]
+dependencies = [
+	"openpyxl>=3.1.5,<4",
+	"pandas>=2.3.3,<3",
+	"plotly>=6.5.0,<7",
+	"streamlit>=1.52.1,<2",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["domestic_economy"]
