@@ -5,6 +5,11 @@ import pandas as pd
 from typing import Tuple
 
 
+def parse_movement_dates(date_series: pd.Series) -> pd.Series:
+    """Parse movement dates allowing Excel timestamps and day-first string dates."""
+    return pd.to_datetime(date_series, format='mixed', dayfirst=True, errors='coerce')
+
+
 def read_movements(excel_path: str) -> pd.DataFrame:
     """
     Read movements data from Excel file.
@@ -17,7 +22,7 @@ def read_movements(excel_path: str) -> pd.DataFrame:
     """
     df = pd.read_excel(excel_path, sheet_name='movements')
     if not df.empty and 'date' in df.columns:
-        df['date'] = pd.to_datetime(df['date'])
+        df['date'] = parse_movement_dates(df['date'])
         df['month'] = df['date'].dt.month
         df['year'] = df['date'].dt.year
     return df

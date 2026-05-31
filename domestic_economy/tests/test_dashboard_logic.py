@@ -14,8 +14,10 @@ from domestic_economy.main import (
     add_cumulative_balance_columns,
     append_totals_row,
     build_previous_year_pairs,
-    calculate_income_expense_summary,
+    build_subcategory_year_comparison,
+    calculate_category_previous_year_comparison,
     calculate_budget_comparison,
+    calculate_income_expense_summary,
     filter_dataframe_by_periods,
     format_period,
     get_default_selected_periods,
@@ -95,6 +97,114 @@ class DashboardLogicTests(unittest.TestCase):
             expected_rows,
         )
         self.assertEqual(format_period(2026, 2), 'Febrero 2026')
+
+    def test_build_subcategory_year_comparison_orders_periods_and_compares_against_previous_year(self):
+        movements_df = pd.DataFrame(
+            [
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 3, 'year': 2026, 'amount': -80.0},
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 1, 'year': 2026, 'amount': -100.0},
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 2, 'year': 2026, 'amount': -120.0},
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 1, 'year': 2025, 'amount': -90.0},
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 2, 'year': 2025, 'amount': -110.0},
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 3, 'year': 2025, 'amount': -70.0},
+                {'category': 'Casa', 'subcategory': 'Varis', 'month': 1, 'year': 2026, 'amount': -30.0},
+            ]
+        )
+
+        comparison = build_subcategory_year_comparison(
+            movements_df,
+            [(2026, 3), (2026, 1), (2026, 2)],
+            'Casa',
+            ['Neteja'],
+        )
+
+        self.assertEqual(comparison['period'].tolist(), ['Enero 2026', 'Febrero 2026', 'Marzo 2026'])
+        self.assertEqual(comparison['current_amount'].tolist(), [100.0, 120.0, 80.0])
+        self.assertEqual(comparison['previous_year_amount'].tolist(), [90.0, 110.0, 70.0])
+
+    def test_build_subcategory_year_comparison_zero_fills_missing_selected_or_previous_periods(self):
+        movements_df = pd.DataFrame(
+            [
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 2, 'year': 2026, 'amount': -125.0},
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 1, 'year': 2025, 'amount': -60.0},
+            ]
+        )
+
+        comparison = build_subcategory_year_comparison(
+            movements_df,
+            [(2026, 1), (2026, 2)],
+            'Casa',
+            ['Neteja'],
+        )
+
+        self.assertEqual(comparison['current_amount'].tolist(), [0.0, 125.0])
+        self.assertEqual(comparison['previous_year_amount'].tolist(), [60.0, 0.0])
+
+    def test_build_subcategory_year_comparison_sums_multiple_selected_subcategories(self):
+        movements_df = pd.DataFrame(
+            [
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 1, 'year': 2026, 'amount': -100.0},
+                {'category': 'Casa', 'subcategory': 'Varis', 'month': 1, 'year': 2026, 'amount': -25.0},
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 2, 'year': 2026, 'amount': -80.0},
+                {'category': 'Casa', 'subcategory': 'Varis', 'month': 2, 'year': 2026, 'amount': -35.0},
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 1, 'year': 2025, 'amount': -70.0},
+                {'category': 'Casa', 'subcategory': 'Varis', 'month': 1, 'year': 2025, 'amount': -15.0},
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 2, 'year': 2025, 'amount': -60.0},
+                {'category': 'Casa', 'subcategory': 'Varis', 'month': 2, 'year': 2025, 'amount': -20.0},
+                {'category': 'Casa', 'subcategory': 'Altres', 'month': 1, 'year': 2026, 'amount': -999.0},
+            ]
+        )
+
+        comparison = build_subcategory_year_comparison(
+            movements_df,
+            [(2026, 1), (2026, 2)],
+            'Casa',
+            ['Varis', 'Neteja'],
+        )
+
+        self.assertEqual(comparison['current_amount'].tolist(), [125.0, 115.0])
+        self.assertEqual(comparison['previous_year_amount'].tolist(), [85.0, 80.0])
+
+    def test_calculate_category_previous_year_comparison_uses_same_selected_months(self):
+        movements_df = pd.DataFrame(
+            [
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 1, 'year': 2026, 'amount': -100.0},
+                {'category': 'Casa', 'subcategory': 'Varis', 'month': 2, 'year': 2026, 'amount': -50.0},
+                {'category': 'Casa', 'subcategory': 'Comunitat', 'month': 1, 'year': 2025, 'amount': -80.0},
+                {'category': 'Casa', 'subcategory': 'Comunitat', 'month': 2, 'year': 2025, 'amount': -40.0},
+                {'category': 'Casa', 'subcategory': 'Comunitat', 'month': 3, 'year': 2025, 'amount': -999.0},
+                {'category': 'Transport', 'subcategory': 'Fuel', 'month': 1, 'year': 2026, 'amount': -25.0},
+            ]
+        )
+
+        comparison = calculate_category_previous_year_comparison(
+            movements_df,
+            [(2026, 2), (2026, 1)],
+            'Casa',
+        )
+
+        self.assertEqual(comparison['current_total'], 150.0)
+        self.assertEqual(comparison['previous_total'], 120.0)
+        self.assertEqual(comparison['difference'], 30.0)
+        self.assertAlmostEqual(comparison['percentage_change'], 25.0)
+
+    def test_calculate_category_previous_year_comparison_handles_missing_previous_total(self):
+        movements_df = pd.DataFrame(
+            [
+                {'category': 'Casa', 'subcategory': 'Neteja', 'month': 1, 'year': 2026, 'amount': -100.0},
+            ]
+        )
+
+        comparison = calculate_category_previous_year_comparison(
+            movements_df,
+            [(2026, 1)],
+            'Casa',
+        )
+
+        self.assertEqual(comparison['current_total'], 100.0)
+        self.assertEqual(comparison['previous_total'], 0.0)
+        self.assertEqual(comparison['difference'], 100.0)
+        self.assertIsNone(comparison['percentage_change'])
 
     def test_summarize_financials_separates_new_home_from_other_expenses(self):
         movements_df = pd.DataFrame(
